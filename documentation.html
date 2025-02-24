@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Streaming System Documentation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+            background: #f9f9f9;
+        }
+        h1, h2, h3 { 
+            color: #2c3e50; 
+            margin-top: 1.5em;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 25px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            border: 1px solid #ddd;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        .diagram {
+            font-family: monospace;
+            white-space: pre;
+            background: #fff;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+        .note {
+            background: #e1f5fe;
+            padding: 15px;
+            border-left: 4px solid #03a9f4;
+            margin: 15px 0;
+            border-radius: 0 4px 4px 0;
+        }
+        .tip {
+            background: #f0f4c3;
+            padding: 15px;
+            border-left: 4px solid #cddc39;
+            margin: 15px 0;
+            border-radius: 0 4px 4px 0;
+        }
+        .warning {
+            background: #ffebee;
+            padding: 15px;
+            border-left: 4px solid #f44336;
+            margin: 15px 0;
+            border-radius: 0 4px 4px 0;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        .term {
+            font-weight: bold;
+            color: #2196f3;
+        }
+    </style>
+</head>
+<body>
+    <h1>Video Streaming System Documentation</h1>
+    
+    <div class="section">
+        <h2>1. Introduction to Video Streaming</h2>
+        <p>Welcome! This documentation will help you understand how our video streaming system works. Let's start with some basic concepts:</p>
+
+        <h3>What is Video Streaming?</h3>
+        <p>Think of video streaming like watching water flow through a pipe. Instead of downloading the entire video file at once (like filling a bucket), streaming sends small pieces of the video one after another (like a steady stream of water). This allows you to start watching before the entire file is downloaded!</p>
+
+        <div class="note">
+            <h4>Key Terms for Beginners:</h4>
+            <ul>
+                <li><span class="term">HLS (HTTP Live Streaming)</span>: A way to send video over the internet in small chunks. It's like cutting a movie into many small pieces and sending them one by one.</li>
+                <li><span class="term">CDN (Content Delivery Network)</span>: A network of servers around the world that store copies of our videos. It's like having many local video stores instead of just one central store.</li>
+                <li><span class="term">Video.js</span>: Our video player software that runs in your web browser. Think of it as a DVD player that plays videos from the internet.</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>2. Why Can't I Just Use the CDN URL Directly?</h2>
+        <p>You might wonder: "Why can't I just use the video URL directly? For example: <code>https://di-yusrkfqf.leasewebultracdn.com/videos/sparkle/stream.m3u8</code>"</p>
+
+        <p>When you try to access this URL directly, instead of playing the video, your browser will try to download the file. Here's why this happens:</p>
+
+        <div class="diagram">
+Direct CDN Access Problems:
+┌──────────┐    ╳    ┌──────────┐
+│ Browser  │─────────│   CDN    │
+└──────────┘         └──────────┘
+      │     Missing:    │
+      │  1. CORS Headers│
+      │  2. MIME Types  │
+      │  3. HLS Support │
+      └────────────────┘</div>
+
+        <h3>2.1 Three Main Reasons:</h3>
+        <ol>
+            <li>
+                <strong>CORS (Cross-Origin Resource Sharing)</strong>
+                <p>Think of CORS like a security guard at a building. When your browser tries to fetch the video directly from the CDN, it's like trying to enter a building without proper ID. The CDN's security settings don't allow direct access from web browsers.</p>
+            </li>
+            <li>
+                <strong>Content Type Headers</strong>
+                <p>The CDN sends the file with a basic content type (<code>binary/octet-stream</code>) instead of the correct video type (<code>application/vnd.apple.mpegurl</code>). It's like labeling a DVD as "random data" instead of "movie" - your browser doesn't know it's supposed to play it!</p>
+            </li>
+            <li>
+                <strong>HLS Playlist Processing</strong>
+                <p>An HLS video isn't just one file - it's a playlist (<code>.m3u8</code>) that points to many small video chunks (<code>.ts</code> files). Even if you could download the playlist, the paths inside it wouldn't work because they're relative to the CDN. It's like having a recipe that lists ingredients but doesn't tell you which store to buy them from!</p>
+            </li>
+        </ol>
+
+        <div class="note">
+            <h4>Technical Example:</h4>
+            <p>Here's what happens when you try to access the CDN directly:</p>
+            <pre>
+GET https://di-yusrkfqf.leasewebultracdn.com/videos/sparkle/stream.m3u8
+Response Headers:
+Content-Type: binary/octet-stream  // Wrong content type!
+Content-Disposition: attachment     // Forces download
+Access-Control-Allow-Origin: ❌    // Missing CORS headers</pre>
+        </div>
+
+        <h3>2.2 How Our Server Fixes These Issues:</h3>
+        <ul>
+            <li><strong>Proper Headers</strong>: We add the correct content type and CORS headers</li>
+            <li><strong>Path Translation</strong>: We fix the video chunk URLs in the playlist</li>
+            <li><strong>Streaming Support</strong>: We handle the HLS protocol properly</li>
+        </ul>
+
+        <div class="tip">
+            <h4>Think of it Like This:</h4>
+            <p>Our server acts like a translator between your browser and the CDN. It takes the raw video data from the CDN and presents it in a way your browser can understand and play!</p>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>3. Our Video Player: Video.js</h2>
+        <p>We use Video.js to play our videos because it's powerful, easy to use, and works on all devices. Here's what makes it special:</p>
+
+        <h3>3.1 Video.js Features</h3>
+        <ul>
+            <li><strong>Adaptive Quality</strong>: Automatically adjusts video quality based on your internet speed</li>
+            <li><strong>Built-in Controls</strong>: Play, pause, volume, and fullscreen buttons</li>
+            <li><strong>Mobile Support</strong>: Works on phones and tablets</li>
+            <li><strong>Custom Styling</strong>: Looks beautiful and matches our website design</li>
+        </ul>
+
+        <div class="tip">
+            <h4>Cool Feature!</h4>
+            <p>You can change playback speed! Try clicking the speed button to watch videos faster or slower.</p>
+        </div>
+
+        <h3>3.2 How to Use the Video Player</h3>
+        <pre>
+// Basic Video.js player setup
+const player = videojs('videoPlayer', {
+    fluid: true,              // Automatically fits the container
+    controls: true,           // Shows video controls
+    autoplay: false,         // Don't play automatically
+    preload: 'auto'          // Start loading video data early
+});</pre>
+    </div>
+
+    <div class="section">
+        <h2>4. How Our System Works</h2>
+        
+        <div class="diagram">
+Video Request Flow:
+┌──────────┐     1      ┌──────────┐     2      ┌──────────┐
+│ Browser  │────────────│  Our     │────────────│   CDN    │
+│          │  Request   │  Server  │   Fetch    │  Server  │
+└──────────┘            └──────────┘            └──────────┘
+      ▲                      │                       │
+      │         4            │          3            │
+      └──────────────────────┴───────────────────────┘
+         Watch Video      Process & Send Data</div>
+
+        <h3>4.1 Step-by-Step Explanation</h3>
+        <ol>
+            <li><strong>You Click Play</strong>: Your browser asks our server for the video</li>
+            <li><strong>Server Contacts CDN</strong>: Our server gets the video from the storage server</li>
+            <li><strong>Processing</strong>: We prepare the video for smooth playback</li>
+            <li><strong>Watching</strong>: Video.js plays the video in your browser</li>
+        </ol>
+
+        <div class="warning">
+            <h4>Common Issues:</h4>
+            <p>If the video doesn't play:</p>
+            <ul>
+                <li>Check your internet connection</li>
+                <li>Try refreshing the page</li>
+                <li>Make sure you're using a modern browser</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>5. Technical Details</h2>
+
+        <h3>5.1 Video Player Code</h3>
+        <pre>
+&lt;video id="videoPlayer" 
+       class="video-js vjs-default-skin"
+       controls
+       preload="auto"&gt;
+    &lt;source src="/proxy/videos/example/stream.m3u8" 
+            type="application/x-mpegURL"&gt;
+&lt;/video&gt;</pre>
+
+        <h3>5.2 Important Settings</h3>
+        <ul>
+            <li><strong>Adaptive Streaming</strong>: Videos automatically adjust quality based on internet speed</li>
+            <li><strong>Error Recovery</strong>: Player automatically tries to recover from network issues</li>
+            <li><strong>Cross-Browser Support</strong>: Works in Chrome, Firefox, Safari, and Edge</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>6. Testing and Troubleshooting</h2>
+        
+        <h3>6.1 How to Test</h3>
+        <pre>
+1. Open the video library page
+2. Select any video
+3. Check if the player loads
+4. Try playing the video
+5. Test different playback speeds
+6. Try fullscreen mode</pre>
+
+        <h3>6.2 Common Error Messages</h3>
+        <ul>
+            <li><strong>"Error loading media"</strong>: Usually means internet connection issues</li>
+            <li><strong>"Format not supported"</strong>: Try using a different browser</li>
+            <li><strong>"Playback error"</strong>: Refresh the page and try again</li>
+        </ul>
+
+        <div class="note">
+            <h4>Need Help?</h4>
+            <p>If you're having problems, check the browser's console (Press F12) for error messages. These help us understand what's wrong!</p>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>7. Best Practices</h2>
+        <ul>
+            <li>Always include proper error handling in your code</li>
+            <li>Test videos on different devices and browsers</li>
+            <li>Monitor server logs for potential issues</li>
+            <li>Keep Video.js and other libraries updated</li>
+        </ul>
+
+        <div class="tip">
+            <h4>Pro Tip!</h4>
+            <p>Use the browser's developer tools (F12) to monitor network activity and see how the video chunks are loaded!</p>
+        </div>
+    </div>
+</body>
+</html> 
